@@ -1,9 +1,12 @@
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder,HttpResponse, http::header};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
-use clap::{Arg,  ArgMatches, Command};
+use anyhow::{*, Result};
+use clap::{Arg,  Command};
 use {log::*, dotenv};
 use mime;
-//将 async main 函数标记为 actix 系统的入口点。 
+
+const DEFAULT_IP : &str = "0.0.0.0";
+const DEFAULT_PORT : &str = "3000";
 
 #[get("/")]
 async fn index(_req: HttpRequest) -> impl Responder {
@@ -11,9 +14,10 @@ async fn index(_req: HttpRequest) -> impl Responder {
 }
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<()> {
 	env_logger::init();
 	dotenv::dotenv().ok();
+
 	let server_address = dotenv::var("SERVER_ADDRESS").unwrap_or("0.0.0.0:3000".to_owned());
 	
 	// load TLS keys
@@ -27,22 +31,45 @@ async fn main() -> std::io::Result<()> {
 						  .about("A simple http(s) server for benchmark")
 						  .arg(Arg::with_name("ssl")
 						  	.short('s')
-						  	.help("enable ssl"));
+						  	.help("enable ssl"))
+						  .arg(Arg::with_name("ip")
+						  	.short('i')
+							.value_name("IP")
+							.takes_value(true)
+							.default_missing_value("0.0.0.0")
+						  	.help("IP, default 0.0.0.0"))
+						  .arg(Arg::with_name("port")
+						  	.short('p')
+							.value_name("PORT")
+							.takes_value(true)
+							.default_missing_value("3000")
+						  	.help("port, default 3000"));
 		
 
 	let server = HttpServer::new(|| App::new().configure(benchmark_routes));
 	
-	let matches = cmd.get_matches();			
+	let matches = cmd.get_matches();
+
+	
+
+	let ip = matches.value_of("ip").unwrap_or(DEFAULT_IP);
+
+
+	let port: u16 = matches.value_of("port").unwrap_or(DEFAULT_PORT).parse()?;
+
+	let address = format!("{}:{}",ip, port);
+	info!("listen on {}", address);
+
 	if matches.is_present("ssl") {				   
 		info!("https enabled");
 		let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
 		builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
 	    builder.set_certificate_chain_file("cert.pem").unwrap();
-		server.bind_openssl(server_address, builder)?.run().await
-
+		server.bind_openssl(server_address, builder)?.run().await?;
 	} else {
-		server.bind(server_address)?.run().await
+		server.bind(server_address)?.run().await?;
 	}
+	Ok(())
 
 }
 
