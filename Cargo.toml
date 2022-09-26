@@ -3,14 +3,14 @@ name = "actix-web-server-for-benchmark"
 version = "0.1.0"
 edition = "2021"
 
-    [features]
-    # no features by default
-    default = []
-	https= []
  
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 actix-web = { version = "4", features = ["openssl"] }
 openssl = { version = "0.10" }
+log = "0.4"
+dotenv = "0.15"
+clap = "3.2"
+env_logger = "0.9.0"
 mime = "0.3"
