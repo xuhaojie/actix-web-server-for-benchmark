@@ -3,7 +3,11 @@ name = "actix-web-server-for-benchmark"
 version = "0.1.0"
 edition = "2021"
 
-
+    [features]
+    # no features by default
+    default = []
+	https= []
+ 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

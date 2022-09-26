@@ -1,4 +1,5 @@
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder,HttpResponse, http::header};
+#[cfg(feature = "https")]
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 
 //将 async main 函数标记为 actix 系统的入口点。 
@@ -8,20 +9,22 @@ async fn index(_req: HttpRequest) -> impl Responder {
     "Welcome!"
 }
 
+#[cfg(not(feature = "https"))]
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-	/*
-    //创建 http 服务器
     HttpServer::new(|| {
-        App::new()//新建一个应用
+        App::new()
 			.configure(benchmark_routes)
     })
-    .bind("0.0.0.0:3000")?//绑定到指定的套接字地址
-    .run()//开始监听
+    .bind("0.0.0.0:3000")?
+    .run()
     .await
-	*/
 
+}
 
+#[cfg(feature = "https")]
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
 	// load TLS keys
     // to create a self-signed temporary cert for testing:
     // `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`
@@ -37,7 +40,6 @@ async fn main() -> std::io::Result<()> {
         .bind_openssl("0.0.0.0:3000", builder)?
         .run()
 		.await
-
 }
 
 pub fn benchmark_routes(cfg: &mut web::ServiceConfig) {
