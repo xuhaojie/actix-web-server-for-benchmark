@@ -4,7 +4,8 @@ use std::{io::BufReader, fs::File};
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
-use actix_web::{get, web::{self}, App, HttpRequest, HttpServer, Responder,HttpResponse, http::header};
+use actix_web::{web::{self}, App, HttpServer, HttpResponse, http::header};
+#[cfg(feature="with_openssl")]
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use anyhow::{*, Result};
 use clap::{Arg,  Command};
@@ -66,7 +67,7 @@ async fn main() -> Result<()> {
 
 	let matches = cmd.get_matches();
 
-	let key_file = match matches.value_of("key"){
+	let key_file_name = match matches.value_of("key"){
 		Some(file) => file.to_string(),
 		_ => match dotenv::var("KEY_FILE") {
 			dotenv::Result::Ok(file) => file,
@@ -74,7 +75,7 @@ async fn main() -> Result<()> {
 		}
 	};
 
-	let cert_file = match matches.value_of("cert"){
+	let cert_file_name = match matches.value_of("cert"){
 		Some(file) =>	file.to_string(),
 		_ => match dotenv::var("CERT_FILE") {
 			dotenv::Result::Ok(file) => file,
@@ -145,28 +146,30 @@ async fn main() -> Result<()> {
 	if https_port != 0 {				   
 		let https_address = format!("{}:{}", server_ip, https_port);
 		info!("https server listen on {}", https_address);
-/*
-		let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-		builder.set_private_key_file(key_file, SslFiletype::PEM)?;
-	    builder.set_certificate_chain_file(cert_file)?;
-		
-		//server.bind_openssl(https_address, builder)?.run().await?;
-*/
-
-		let cert_file_ = &mut BufReader::new(File::open(cert_file)?);
-		let key_file_ = &mut BufReader::new(File::open(key_file)?);
-		
-		let cert_chain = certs(cert_file_)?.into_iter().map(Certificate).collect();
-		let mut keys: Vec<PrivateKey> = pkcs8_private_keys(key_file_)?.into_iter().map(PrivateKey).collect();
-		
-		if keys.is_empty() {
-			return Err(anyhow!("Could not locate PKCS 8 private keys."));
+		#[cfg(feature = "with_openssl")]
+		{	
+			info!("https server build with openssl");	
+			let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
+			builder.set_private_key_file(key_file_name, SslFiletype::PEM)?;
+			builder.set_certificate_chain_file(cert_file_name)?;
+			server.bind_openssl(https_address, builder)?.run().await?;
 		}
-		
-		let config = ServerConfig::builder().with_safe_defaults().with_no_client_auth();
-		
-		server.bind_rustls(https_address, config.with_single_cert(cert_chain, keys.remove(0))?)?.run().await?;
-		//server.bind_rustls(https_address, builder)?.run().await?;
+		#[cfg(feature = "with_rustls")]
+		{
+			info!("https server build with rustls");	
+			let cert_file = &mut BufReader::new(File::open(cert_file_name)?);
+			let key_file = &mut BufReader::new(File::open(key_file_name)?);
+			
+			let cert_chain = certs(cert_file)?.into_iter().map(Certificate).collect();
+			let mut keys: Vec<PrivateKey> = pkcs8_private_keys(key_file)?.into_iter().map(PrivateKey).collect();
+			
+			if keys.is_empty() {
+				return Err(anyhow!("Could not locate PKCS 8 private keys."));
+			}
+			let config = ServerConfig::builder().with_safe_defaults().with_no_client_auth();
+			server.bind_rustls(https_address, config.with_single_cert(cert_chain, keys.remove(0))?)?.run().await?;
+		}
+
 	} else {
 		server.run().await?;
 	}
