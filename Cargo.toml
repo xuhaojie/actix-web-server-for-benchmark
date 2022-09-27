@@ -8,7 +8,7 @@ edition = "2021"
 [features]
 with_openssl = ["actix-web/openssl", "openssl"]
 with_rustls = ["actix-web/rustls", "rustls", "rustls-pemfile"]
-default = ["with_rustls"]
+default = ["with_openssl"]
 
 [dependencies]
 actix-web = { version = "4", features = ["rustls"]}
