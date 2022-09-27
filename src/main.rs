@@ -6,8 +6,8 @@ use {log::*, dotenv};
 use mime;
 
 const DEFAULT_IP : &str = "0.0.0.0";
-const DEFAULT_PORT : &str = "3080";
-const DEFAULT_SSL_PORT : &str = "3443";
+const DEFAULT_PORT : u16 = 3000;
+
 
 #[get("/")]
 async fn index(_req: HttpRequest) -> impl Responder {
@@ -19,9 +19,6 @@ async fn main() -> Result<()> {
 	env_logger::init();
 	dotenv::dotenv().ok();
 
-
-
-
 	let cmd = Command::new("bench_server")
 						  .version("1.0")
 						  .author("Xu Haojie <xuhaojie@hotmail.com>")
@@ -31,43 +28,65 @@ async fn main() -> Result<()> {
 							.value_name("ip")
 							.takes_value(true)
 							.default_missing_value("0.0.0.0")
-						  	.help("Server bind ip, default 0.0.0.0"))
+						  	.help("Server bind ip, default 0.0.0.0, env key: SERVER_IP"))
 						  .arg(Arg::with_name("port")
 						  	.short('p')
 							.value_name("http port")
 							.takes_value(true)
 							.default_missing_value("3080")
-						  	.help("Http server port, default 3080"))
+						  	.help("Http server port, default 3080, env key: HTTP_PORT"))
 						  .arg(Arg::with_name("https")
 						  	.short('s')
 							.value_name("https port")
 							.takes_value(true)
-						  	.help("Enable and specify the https server port"));
+						  	.help("Enable and specify the https server port, env key: HTTPS_PORT"));
 		
 
 	let server = HttpServer::new(|| App::new().configure(benchmark_routes));
 	
 	let matches = cmd.get_matches();
 
-	
 
-	let ip = matches.value_of("ip").unwrap_or(DEFAULT_IP);
+	let mut server_ip = match dotenv::var("SERVER_IP") {
+		dotenv::Result::Ok(ip) => ip,
+		_ => DEFAULT_IP.to_string(),
+	};
+
+	let mut http_port = match dotenv::var("HTTP_PORT") {
+		dotenv::Result::Ok(port) => port.parse::<u16>()?,
+		_ => DEFAULT_PORT,
+	};
+
+	let mut https_port = match dotenv::var("HTTPS_PORT") {
+		dotenv::Result::Ok(port) => port.parse::<u16>()?,
+		_ => 0u16,
+	};
 
 
-	let port: u16 = matches.value_of("port").unwrap_or(DEFAULT_PORT).parse()?;
+
+	if let Some(ip) = matches.value_of("ip"){
+		server_ip = ip.to_string();
+	}
 
 
-	let http_address = format!("{}:{}",ip, port);
+	if let Some(port) = matches.value_of("port"){
+		http_port = port.parse::<u16>()?;
+	}
+
+	if let Some(port) = matches.value_of("https"){
+		https_port = port.parse::<u16>()?;
+	}
+
+
+	let http_address = format!("{}:{}", server_ip, http_port);
 
 	info!("http server listen on {}", http_address);
 	
 	let server = server.bind(http_address)?;
 
-	if matches.is_present("https") {				   
-		let https_port: u16 = matches.value_of("https").unwrap_or(DEFAULT_SSL_PORT).parse()?;
-		let https_address = format!("{}:{}",ip, https_port);
+	if https_port != 0 {				   
+		let https_address = format!("{}:{}", server_ip, https_port);
 		info!("https server listen on {}", https_address);
-
 		// load TLS keys
 		// to create a self-signed temporary cert for testing:
 		// `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`		
