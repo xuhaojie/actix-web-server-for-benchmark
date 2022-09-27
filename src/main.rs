@@ -1,3 +1,5 @@
+// to create a self-signed temporary cert for testing: `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`
+
 use actix_web::{get, web, App, HttpRequest, HttpServer, Responder,HttpResponse, http::header};
 use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use anyhow::{*, Result};
@@ -56,50 +58,41 @@ async fn main() -> Result<()> {
 	
 	let matches = cmd.get_matches();
 
-	let key_file = if let Some(file) = matches.value_of("key"){
-		file.to_string()
-	} else {
-		match dotenv::var("KEY_FILE") {
+	let key_file = match matches.value_of("key"){
+		Some(file) => file.to_string(),
+		_ => match dotenv::var("KEY_FILE") {
 			dotenv::Result::Ok(file) => file,
 			_ => DEFAULT_KEY_FILE.to_string(),
 		}
 	};
 
-
-	let cert_file = if let Some(file) = matches.value_of("cert"){
-		file.to_string()
-	} else {
-		match dotenv::var("CERT_FILE") {
+	let cert_file = match matches.value_of("cert"){
+		Some(file) =>	file.to_string(),
+		_ => match dotenv::var("CERT_FILE") {
 			dotenv::Result::Ok(file) => file,
 			_ => DEFAULT_KEY_FILE.to_string(),
 		}
 	};
 
-
-	let server_ip = if let Some(ip) = matches.value_of("ip"){
-		ip.to_string()
-	} else {
-		match dotenv::var("SERVER_IP") {
+	let server_ip = match matches.value_of("ip"){
+		Some(ip) => ip.to_string(),
+		_ => match dotenv::var("SERVER_IP") {
 			dotenv::Result::Ok(ip) => ip,
 			_ => DEFAULT_IP.to_string(),
 		}
 	};
 
-
-	let http_port = if let Some(port) = matches.value_of("port"){
-		port.parse::<u16>()?
-	} else {
-		match dotenv::var("HTTP_PORT") {
+	let http_port = match matches.value_of("port"){
+		Some(port) => port.parse::<u16>()?,
+		_ => match dotenv::var("HTTP_PORT") {
 			dotenv::Result::Ok(port) => port.parse::<u16>()?,
 			_ => DEFAULT_PORT,
 		}
 	};
 
-
-	let https_port = if let Some(port) = matches.value_of("https"){
-		port.parse::<u16>()?
-	} else {
-		match dotenv::var("HTTPS_PORT") {
+	let https_port = match matches.value_of("https"){
+		Some(port) => port.parse::<u16>()?,
+		_ => match dotenv::var("HTTPS_PORT") {
 			dotenv::Result::Ok(port) => port.parse::<u16>()?,
 			_ => 0u16,
 		}
@@ -114,9 +107,7 @@ async fn main() -> Result<()> {
 	if https_port != 0 {				   
 		let https_address = format!("{}:{}", server_ip, https_port);
 		info!("https server listen on {}", https_address);
-		// load TLS keys
-		// to create a self-signed temporary cert for testing:
-		// `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`		
+
 		let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
 		builder.set_private_key_file(key_file, SslFiletype::PEM)?;
 	    builder.set_certificate_chain_file(cert_file)?;
