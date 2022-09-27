@@ -6,7 +6,8 @@ use {log::*, dotenv};
 use mime;
 
 const DEFAULT_IP : &str = "0.0.0.0";
-const DEFAULT_PORT : &str = "3000";
+const DEFAULT_PORT : &str = "3080";
+const DEFAULT_SSL_PORT : &str = "3443";
 
 #[get("/")]
 async fn index(_req: HttpRequest) -> impl Responder {
@@ -18,32 +19,30 @@ async fn main() -> Result<()> {
 	env_logger::init();
 	dotenv::dotenv().ok();
 
-	let server_address = dotenv::var("SERVER_ADDRESS").unwrap_or("0.0.0.0:3000".to_owned());
-	
-	// load TLS keys
-    // to create a self-signed temporary cert for testing:
-    // `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`
+
 
 
 	let cmd = Command::new("bench_server")
 						  .version("1.0")
 						  .author("Xu Haojie <xuhaojie@hotmail.com>")
 						  .about("A simple http(s) server for benchmark")
-						  .arg(Arg::with_name("ssl")
-						  	.short('s')
-						  	.help("enable ssl"))
 						  .arg(Arg::with_name("ip")
 						  	.short('i')
-							.value_name("IP")
+							.value_name("ip")
 							.takes_value(true)
 							.default_missing_value("0.0.0.0")
-						  	.help("IP, default 0.0.0.0"))
+						  	.help("Server bind ip, default 0.0.0.0"))
 						  .arg(Arg::with_name("port")
 						  	.short('p')
-							.value_name("PORT")
+							.value_name("http port")
 							.takes_value(true)
-							.default_missing_value("3000")
-						  	.help("port, default 3000"));
+							.default_missing_value("3080")
+						  	.help("Http server port, default 3080"))
+						  .arg(Arg::with_name("https")
+						  	.short('s')
+							.value_name("https port")
+							.takes_value(true)
+						  	.help("Enable and specify the https server port"));
 		
 
 	let server = HttpServer::new(|| App::new().configure(benchmark_routes));
@@ -57,18 +56,30 @@ async fn main() -> Result<()> {
 
 	let port: u16 = matches.value_of("port").unwrap_or(DEFAULT_PORT).parse()?;
 
-	let address = format!("{}:{}",ip, port);
-	info!("listen on {}", address);
 
-	if matches.is_present("ssl") {				   
-		info!("https enabled");
+	let http_address = format!("{}:{}",ip, port);
+
+	info!("http server listen on {}", http_address);
+	
+	let server = server.bind(http_address)?;
+
+	if matches.is_present("https") {				   
+		let https_port: u16 = matches.value_of("https").unwrap_or(DEFAULT_SSL_PORT).parse()?;
+		let https_address = format!("{}:{}",ip, https_port);
+		info!("https server listen on {}", https_address);
+
+		// load TLS keys
+		// to create a self-signed temporary cert for testing:
+		// `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`		
 		let mut builder = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
 		builder.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
 	    builder.set_certificate_chain_file("cert.pem").unwrap();
-		server.bind_openssl(server_address, builder)?.run().await?;
-	} else {
-		server.bind(server_address)?.run().await?;
+		
+		server.bind_openssl(https_address, builder)?.run().await?;
+	}else{
+		server.run().await?;
 	}
+	
 	Ok(())
 
 }
