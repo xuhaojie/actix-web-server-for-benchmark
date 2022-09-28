@@ -1,14 +1,12 @@
 // to create a self-signed temporary cert for testing: `openssl req -x509 -newkey rsa:4096 -nodes -keyout key.pem -out cert.pem -days 365 -subj '/CN=localhost'`
-
-use std::{io::BufReader, fs::{File, self}, cell::Cell, sync::Mutex};
+use actix_web::{web::{self}, App, HttpServer, HttpResponse, http::header};
+#[cfg(feature="with_openssl")]
+use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 #[cfg(feature="with_rustls")]
 use rustls::{Certificate, PrivateKey, ServerConfig};
 #[cfg(feature="with_rustls")]
 use rustls_pemfile::{certs, pkcs8_private_keys};
 
-use actix_web::{web::{self}, App, HttpServer, HttpResponse, http::header};
-#[cfg(feature="with_openssl")]
-use openssl::ssl::{SslAcceptor, SslFiletype, SslMethod};
 use anyhow::{*, Result};
 use clap::{Arg,  Command};
 use {log::*, dotenv};
@@ -30,6 +28,7 @@ pub struct ResponseData {
 	pub put: String,
 	pub delete: String,
 }
+
 
 impl ResponseData {
 	fn new() -> Self {
@@ -53,15 +52,15 @@ impl ResponseData {
 		};
 		let post =  match std::fs::read_to_string("post.json"){
 			std::result::Result::Ok(text) => text,
-			_ => response::GET_RESPONSE.to_string(),
+			_ => response::POST_RESPONSE.to_string(),
 		};
 		let put =  match std::fs::read_to_string("put.json"){
 			std::result::Result::Ok(text) => text,
-			_ => response::GET_RESPONSE.to_string(),
+			_ => response::PUT_RESPONSE.to_string(),
 		};	
 		let delete =  match std::fs::read_to_string("delete.json"){
 			std::result::Result::Ok(text) => text,
-			_ => response::GET_RESPONSE.to_string(),
+			_ => response::DELETE_RESPONSE.to_string(),
 		};				
 		ResponseData{index, get, post, put, delete}
 	}	

@@ -15,7 +15,6 @@ r#"<!DOCTYPE html>
 </body>
 </html>"#;
 
-	
 pub const GET_RESPONSE: &str =
 r#"{
 "args": {},
